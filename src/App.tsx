@@ -41,7 +41,7 @@ export const App: React.FC = () => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, [todosFromServer, inputDisabled]);
+  }, [todosFromServer.length, inputDisabled]);
 
   useEffect(() => {
     const remainingTasks = todosFromServer.filter(

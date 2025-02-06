@@ -1,7 +1,7 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
 import cn from 'classnames';
 import { Todo } from '../../types/Todo';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { CSSTransition, TransitionGroup } from 'react-transition-group';
 
 type Props = {
@@ -22,44 +22,28 @@ export const TodoList: React.FC<Props> = ({
   const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
   const [value, setValue] = useState('');
 
-  const handleTodoEdit = (todo: Todo) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const toggleTodoCompletion = (todo: Todo) => {
+    onUpdate({ ...todo, completed: !todo.completed });
+  };
+
+  const handleTodoEdit = useCallback((todo: Todo) => {
     setEditingTodoId(todo.id);
     setValue(todo.title);
-  };
+  }, []);
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(event.target.value);
-  };
+  const handleChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setValue(event.target.value);
+    },
+    [],
+  );
 
-  const handleBlur = () => {
-    setEditingTodoId(null);
-  };
-
-  const handleTodoChange = (
-    { key, val }: { key: keyof Todo; val: Todo[keyof Todo] },
-    todo: Todo,
-  ) => {
-    const updatedTodo: Todo = {
-      ...todo,
-      [key]: val,
-    };
-
-    onUpdate(updatedTodo);
-  };
-
-  const handleKeyDown = async (
-    event: React.KeyboardEvent<HTMLInputElement>,
-    todo: Todo,
-  ) => {
-    if (event.key === 'Enter') {
-      if (value === '') {
+  const updateTodoTitle = useCallback(
+    async (todo: Todo) => {
+      if (value.trim() === '') {
         onDelete(todo.id);
-
-        return;
-      }
-
-      if (value === todo.title) {
-        setEditingTodoId(null);
 
         return;
       }
@@ -68,26 +52,43 @@ export const TodoList: React.FC<Props> = ({
         await onUpdate({ ...todo, title: value.trim() });
         setEditingTodoId(null);
       } catch (error) {
-        const inputElement =
-          document.querySelector<HTMLInputElement>('.todo__title-field');
-
-        if (inputElement) {
-          inputElement.focus();
-        }
+        inputRef.current?.focus();
       }
+    },
+    [value, onUpdate, onDelete],
+  );
 
-      // onUpdate({ ...todo, title: value.trim() });
-      // setEditingTodoId(null);
-    }
+  const handleKeyDown = useCallback(
+    async (event: React.KeyboardEvent<HTMLInputElement>, todo: Todo) => {
+      if (event.key === 'Enter') {
+        if (todo.title === value.trim()) {
+          setEditingTodoId(null);
 
-    if (event.key === 'Escape') {
-      handleBlur();
-    }
-  };
+          return;
+        }
 
-  const handleDelieteTodo = (id: number) => {
+        updateTodoTitle(todo);
+      } else if (event.key === 'Escape') {
+        setEditingTodoId(null);
+      }
+    },
+    [updateTodoTitle],
+  );
+
+  const handleDeleteTodo = (id: number) => {
     onDelete(id);
   };
+
+  const handleBlur = useCallback(
+    (todo: Todo) => {
+      if (value !== todo.title) {
+        updateTodoTitle(todo);
+      } else {
+        setEditingTodoId(null);
+      }
+    },
+    [value, updateTodoTitle],
+  );
 
   return (
     <section className="todoapp__main" data-cy="TodoList">
@@ -107,18 +108,14 @@ export const TodoList: React.FC<Props> = ({
                     type="checkbox"
                     className="todo__status"
                     checked={todo.completed}
-                    onChange={() =>
-                      handleTodoChange(
-                        { key: 'completed', val: !todo.completed },
-                        todo,
-                      )
-                    }
+                    onChange={() => toggleTodoCompletion(todo)}
                   />
                 </label>
 
                 {editingTodoId === todo.id ? (
                   <form onSubmit={e => e.preventDefault()}>
                     <input
+                      ref={inputRef}
                       data-cy="TodoTitleField"
                       type="text"
                       className="todo__title-field"
@@ -126,8 +123,7 @@ export const TodoList: React.FC<Props> = ({
                       value={value}
                       onChange={handleChange}
                       onKeyDown={event => handleKeyDown(event, todo)}
-                      onBlur={handleBlur}
-                      // disabled={isDisabled}
+                      onBlur={() => handleBlur(todo)}
                       autoFocus
                     />
                   </form>
@@ -145,7 +141,7 @@ export const TodoList: React.FC<Props> = ({
                       type="button"
                       className="todo__remove"
                       data-cy="TodoDelete"
-                      onClick={() => handleDelieteTodo(todo.id)}
+                      onClick={() => handleDeleteTodo(todo.id)}
                     >
                       ×
                     </button>
